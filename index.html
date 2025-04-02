@@ -9,6 +9,8 @@
             --primary-color: #2c5eff;
             --primary-light: #e8efff;
             --primary-dark: #1e45cc;
+            --accent-color: #ff6b2c; /* 問い合わせボタン用のアクセントカラー */
+            --accent-dark: #e55a1e; /* ホバー時の色 */
             --text-color: #333;
             --light-bg: #f8f9ff;
             --border-color: #ddd;
@@ -198,6 +200,30 @@
         
         .restart-button:hover {
             background: var(--primary-light);
+        }
+        
+        /* 問い合わせボタン用のスタイル */
+        .contact-button {
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 13px;
+            margin-top: 10px;
+            margin-left: 10px;
+            display: inline-block;
+        }
+        
+        .contact-button:hover {
+            background: var(--accent-dark);
+        }
+        
+        .button-container {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
         }
         
         .clearfix::after {
@@ -648,9 +674,11 @@
                 estimateResultDiv.appendChild(urbanNoteDiv);
             }
             
+            // ボタンコンテナの作成
+            const buttonContainer = document.createElement('div');
+            buttonContainer.className = 'button-container';
+            
             // やり直しボタン
-            const restartDiv = document.createElement('div');
-            restartDiv.className = 'clearfix';
             const restartButton = document.createElement('button');
             restartButton.className = 'restart-button';
             restartButton.textContent = 'もう一度計算する';
@@ -658,15 +686,26 @@
                 resetChat();
                 startChat();
             });
-            restartDiv.appendChild(restartButton);
-            estimateResultDiv.appendChild(restartDiv);
+            buttonContainer.appendChild(restartButton);
+            
+            // 問い合わせボタン
+            const contactButton = document.createElement('button');
+            contactButton.className = 'contact-button';
+            contactButton.textContent = '詳細な見積りを依頼';
+            contactButton.addEventListener('click', () => {
+                // 問い合わせフォームへ移動
+                window.location.href = '#contact-form'; // ここに実際の問い合わせフォームのURLを設定
+            });
+            buttonContainer.appendChild(contactButton);
+            
+            estimateResultDiv.appendChild(buttonContainer);
             
             // 結果の追加
             chatMessages.appendChild(estimateResultDiv);
             scrollToBottom();
             
             setTimeout(() => {
-                addBotMessage('お見積りを確認いただけましたか？より詳細なお見積りや実際のご相談は、お問い合わせフォームよりお気軽にご連絡ください。');
+                addBotMessage('お見積りを確認いただけましたか？より詳細なお見積りやご相談は「詳細な見積りを依頼」ボタンからお問い合わせください。');
                 
                 chatState.currentStep = 'restart';
                 userInput.disabled = false;
