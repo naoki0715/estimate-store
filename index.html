@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>飲食店工事見積チャットボット</title>
+    <style>
+        :root {
+            --primary-color: #2c5eff;
+            --primary-light: #e8efff;
+            --primary-dark: #1e45cc;
+            --text-color: #333;
+            --light-bg: #f8f9ff;
+            --border-color: #ddd;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: "Yu Gothic", "游ゴシック", YuGothic, "游ゴシック体", sans-serif;
+        }
+        
+        body {
+            background-color: #f9f9f9;
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+        
+        .chat-container {
+            max-width: 400px;
+            margin: 20px auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 15px rgba(0,0,0,0.1);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 600px;
+        }
+        
+        .chat-header {
+            background: var(--primary-color);
+            color: white;
+            padding: 15px;
+            text-align: center;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .chat-header .chat-icon {
+            margin-right: 8px;
+            font-size: 20px;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            background-color: var(--light-bg);
+        }
+        
+        .message {
+            margin-bottom: 15px;
+            max-width: 80%;
+            padding: 10px 15px;
+            border-radius: 20px;
+            position: relative;
+            clear: both;
+            word-wrap: break-word;
+        }
+        
+        .bot {
+            background: white;
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            float: left;
+            border-bottom-left-radius: 5px;
+        }
+        
+        .user {
+            background: var(--primary-color);
+            color: white;
+            float: right;
+            border-bottom-right-radius: 5px;
+        }
+        
+        .chat-input {
+            display: flex;
+            padding: 10px;
+            border-top: 1px solid var(--border-color);
+            background: white;
+        }
+        
+        .chat-input input {
+            flex: 1;
+            padding: 10px 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 30px;
+            outline: none;
+            font-size: 14px;
+        }
+        
+        .chat-input input:focus {
+            border-color: var(--primary-color);
+        }
+        
+        .chat-input button {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            margin-left: 10px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .chat-input button:hover {
+            background: var(--primary-dark);
+        }
+        
+        .options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        
+        .option-button {
+            background: white;
+            border: 1px solid var(--primary-color);
+            color: var(--primary-color);
+            padding: 8px 12px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        
+        .option-button:hover {
+            background: var(--primary-light);
+        }
+        
+        .estimate-result {
+            background: white;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 10px;
+            max-width: 90%;
+            float: left;
+            clear: both;
+        }
+        
+        .estimate-title {
+            color: var(--primary-color);
+            font-weight: bold;
+            margin-bottom: 10px;
+            font-size: 15px;
+        }
+        
+        .estimate-price {
+            font-size: 22px;
+            font-weight: bold;
+            color: var(--primary-color);
+            margin: 5px 0;
+        }
+        
+        .estimate-detail {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+            font-size: 13px;
+        }
+        
+        .estimate-note {
+            font-size: 12px;
+            color: #666;
+            margin-top: 10px;
+        }
+        
+        .restart-button {
+            background: var(--light-bg);
+            color: var(--primary-color);
+            border: 1px solid var(--primary-color);
+            padding: 8px 12px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 13px;
+            margin-top: 10px;
+            display: inline-block;
+        }
+        
+        .restart-button:hover {
+            background: var(--primary-light);
+        }
+        
+        .clearfix::after {
+            content: "";
+            clear: both;
+            display: table;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <span class="chat-icon">💬</span>
+            <span>飲食店工事見積シミュレーター</span>
+        </div>
+        <div class="chat-messages" id="chat-messages">
+            <!-- メッセージはJSで動的に追加されます -->
+        </div>
+        <div class="chat-input">
+            <input type="text" id="user-input" placeholder="メッセージを入力..." disabled>
+            <button id="send-button" disabled>送信</button>
+        </div>
+    </div>
+
+    <script>
+        // 基本単価設定（1坪あたり、万円）
+        const baseCosts = {
+            'urban': { 'new': 90, 'renovation': 70, 'tenant': 40 },
+            'major-city': { 'new': 80, 'renovation': 60, 'tenant': 35 },
+            'regional-city': { 'new': 70, 'renovation': 50, 'tenant': 30 },
+            'suburban': { 'new': 60, 'renovation': 45, 'tenant': 25 }
+        };
+        
+        // 業態係数
+        const businessTypeFactors = {
+            'restaurant': 1.2,
+            'cafe': 1.0,
+            'bar': 1.1,
+            'fastfood': 0.9,
+            'takeout': 0.8
+        };
+        
+        // 厨房規模係数
+        const kitchenScaleFactors = {
+            'full': 1.3,
+            'semi': 1.2,
+            'simple': 1.0,
+            'drink': 0.7
+        };
+        
+        // 内装グレード係数
+        const interiorGradeFactors = {
+            'standard': 1.0,
+            'middle': 1.3,
+            'high': 1.7
+        };
+        
+        // 工期係数
+        const constructionPeriodFactors = {
+            'normal': 1.0,
+            'express': 1.2,
+            'urgent': 1.5
+        };
+        
+        // チャットボットの状態管理
+        const chatState = {
+            currentStep: 'greeting',
+            estimateData: {
+                region: '',
+                area: 0,
+                constructionType: '',
+                businessType: '',
+                kitchenScale: '',
+                interiorGrade: '',
+                specialFeatures: [],
+                constructionPeriod: ''
+            }
+        };
+        
+        // DOM要素の取得
+        const chatMessages = document.getElementById('chat-messages');
+        const userInput = document.getElementById('user-input');
+        const sendButton = document.getElementById('send-button');
+        
+        // イベントリスナーの設定
+        sendButton.addEventListener('click', handleUserInput);
+        userInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                handleUserInput();
+            }
+        });
+        
+        // ページ読み込み時に最初のメッセージを表示
+        window.addEventListener('load', startChat);
+        
+        // チャットを開始する関数
+        function startChat() {
+            // 初期メッセージを表示
+            setTimeout(() => {
+                addBotMessage('こんにちは！飲食店工事の見積シミュレーターへようこそ。簡単な質問に答えていただくことで、おおよその工事費用をお見積りします。');
+                
+                setTimeout(() => {
+                    addBotMessage('まず、工事予定の地域を教えてください。');
+                    
+                    // 地域選択肢の表示
+                    const regionOptions = [
+                        { id: 'urban', text: '都心部（東京23区、大阪市中心部など）' },
+                        { id: 'major-city', text: '主要都市（政令指定都市の中心部）' },
+                        { id: 'regional-city', text: '地方都市（県庁所在地など）' },
+                        { id: 'suburban', text: '郊外・その他' }
+                    ];
+                    
+                    addOptionsButtons(regionOptions, selectRegion);
+                    
+                }, 500);
+            }, 500);
+        }
+        
+        // ユーザー入力を処理する関数
+        function handleUserInput() {
+            const message = userInput.value.trim();
+            if (message === '') return;
+            
+            // ユーザーメッセージの追加
+            addUserMessage(message);
+            
+            // 入力欄をクリア
+            userInput.value = '';
+            
+            // 現在のステップに応じて処理
+            switch (chatState.currentStep) {
+                case 'area':
+                    processAreaInput(message);
+                    break;
+                    
+                case 'restart':
+                    if (message.includes('はい') || message.includes('yes') || message.includes('もう一度')) {
+                        resetChat();
+                        startChat();
+                    } else {
+                        addBotMessage('ありがとうございました。他にご質問がございましたら、お気軽にお問い合わせください。');
+                    }
+                    break;
+                    
+                default:
+                    // 基本的にはボタンで選択するので、テキスト入力は限定的
+                    addBotMessage('申し訳ありません。選択肢からお選びください。');
+                    break;
+            }
+        }
+        
+        // ボットメッセージを追加する関数
+        function addBotMessage(message) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message bot';
+            messageDiv.textContent = message;
+            chatMessages.appendChild(messageDiv);
+            scrollToBottom();
+        }
+        
+        // ユーザーメッセージを追加する関数
+        function addUserMessage(message) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message user';
+            messageDiv.textContent = message;
+            chatMessages.appendChild(messageDiv);
+            scrollToBottom();
+        }
+        
+        // 選択肢ボタンを追加する関数
+        function addOptionsButtons(options, callback) {
+            const optionsDiv = document.createElement('div');
+            optionsDiv.className = 'options clearfix';
+            
+            options.forEach(option => {
+                const button = document.createElement('button');
+                button.className = 'option-button';
+                button.textContent = option.text;
+                button.addEventListener('click', () => {
+                    // ボタンを無効化
+                    const buttons = optionsDiv.querySelectorAll('button');
+                    buttons.forEach(btn => {
+                        btn.disabled = true;
+                        btn.style.opacity = '0.5';
+                    });
+                    
+                    // ユーザーの選択を表示
+                    addUserMessage(option.text);
+                    
+                    // コールバック実行
+                    callback(option.id);
+                });
+                
+                optionsDiv.appendChild(button);
+            });
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message bot';
+            messageDiv.appendChild(optionsDiv);
+            chatMessages.appendChild(messageDiv);
+            scrollToBottom();
+        }
+        
+        // 地域選択の処理
+        function selectRegion(regionId) {
+            chatState.estimateData.region = regionId;
+            
+            setTimeout(() => {
+                addBotMessage('店舗の広さを教えてください（坪数）。10坪〜100坪の範囲で入力してください。');
+                
+                // 面積入力の有効化
+                userInput.disabled = false;
+                sendButton.disabled = false;
+                userInput.focus();
+                
+                chatState.currentStep = 'area';
+            }, 500);
+        }
+        
+        // 面積入力の処理
+        function processAreaInput(input) {
+            const area = parseFloat(input.replace(/[^0-9.]/g, ''));
+            
+            if (isNaN(area) || area < 10 || area > 100) {
+                addBotMessage('10坪〜100坪の範囲で入力してください。例: 30');
+                return;
+            }
+            
+            chatState.estimateData.area = area;
+            userInput.disabled = true;
+            sendButton.disabled = true;
+            
+            setTimeout(() => {
+                addBotMessage('工事の種類を選択してください。');
+                
+                const constructionOptions = [
+                    { id: 'new', text: '新装工事（スケルトン渡し）' },
+                    { id: 'renovation', text: 'リノベーション工事（既存店舗の改装）' },
+                    { id: 'tenant', text: '居抜き物件活用（既存設備の流用）' }
+                ];
+                
+                addOptionsButtons(constructionOptions, selectConstructionType);
+            }, 500);
+        }
+        
+        // 工事種類選択の処理
+        function selectConstructionType(constructionTypeId) {
+            chatState.estimateData.constructionType = constructionTypeId;
+            
+            setTimeout(() => {
+                addBotMessage('店舗の業態を選択してください。');
+                
+                const businessOptions = [
+                    { id: 'restaurant', text: 'レストラン（フルサービス）' },
+                    { id: 'cafe', text: 'カフェ' },
+                    { id: 'bar', text: 'バー・居酒屋' },
+                    { id: 'fastfood', text: 'ファストフード' },
+                    { id: 'takeout', text: 'テイクアウト専門店' }
+                ];
+                
+                addOptionsButtons(businessOptions, selectBusinessType);
+            }, 500);
+        }
+        
+        // 業態選択の処理
+        function selectBusinessType(businessTypeId) {
+            chatState.estimateData.businessType = businessTypeId;
+            
+            setTimeout(() => {
+                addBotMessage('厨房の規模を選択してください。');
+                
+                const kitchenOptions = [
+                    { id: 'full', text: 'フル厨房（本格調理）' },
+                    { id: 'semi', text: 'セミオープンキッチン' },
+                    { id: 'simple', text: '簡易厨房（軽調理のみ）' },
+                    { id: 'drink', text: 'ドリンク調理のみ' }
+                ];
+                
+                addOptionsButtons(kitchenOptions, selectKitchenScale);
+            }, 500);
+        }
+        
+        // 厨房規模選択の処理
+        function selectKitchenScale(kitchenScaleId) {
+            chatState.estimateData.kitchenScale = kitchenScaleId;
+            
+            setTimeout(() => {
+                addBotMessage('内装のグレードを選択してください。');
+                
+                const interiorOptions = [
+                    { id: 'standard', text: 'スタンダード（一般的な内装）' },
+                    { id: 'middle', text: 'ミドル（デザイン性を意識）' },
+                    { id: 'high', text: 'ハイグレード（高級感のある仕上げ）' }
+                ];
+                
+                addOptionsButtons(interiorOptions, selectInteriorGrade);
+            }, 500);
+        }
+        
+        // 内装グレード選択の処理
+        function selectInteriorGrade(interiorGradeId) {
+            chatState.estimateData.interiorGrade = interiorGradeId;
+            
+            setTimeout(() => {
+                addBotMessage('希望する工期を選択してください。');
+                
+                const periodOptions = [
+                    { id: 'normal', text: '通常（6〜8週間）' },
+                    { id: 'express', text: '急ぎ（4〜6週間、割増料金）' },
+                    { id: 'urgent', text: '超特急（2〜4週間、大幅割増）' }
+                ];
+                
+                addOptionsButtons(periodOptions, selectConstructionPeriod);
+            }, 500);
+        }
+        
+        // 工期選択の処理
+        function selectConstructionPeriod(periodId) {
+            chatState.estimateData.constructionPeriod = periodId;
+            
+            setTimeout(() => {
+                addBotMessage('ありがとうございます。入力された情報を基に見積りを計算しています...');
+                
+                setTimeout(() => {
+                    // 見積り計算と表示
+                    calculateAndShowEstimate();
+                }, 1000);
+            }, 500);
+        }
+        
+        // 見積りの計算と表示
+        function calculateAndShowEstimate() {
+            const { region, area, constructionType, businessType, kitchenScale, interiorGrade, constructionPeriod } = chatState.estimateData;
+            
+            // 基本工事費の計算
+            const baseUnitPrice = baseCosts[region][constructionType]; // 坪単価（万円）
+            const businessFactor = businessTypeFactors[businessType];
+            const kitchenFactor = kitchenScaleFactors[kitchenScale];
+            const interiorFactor = interiorGradeFactors[interiorGrade];
+            
+            let baseCost = area * baseUnitPrice * businessFactor * kitchenFactor * interiorFactor;
+            
+            // 厨房設備コスト
+            let kitchenEquipmentCost = 0;
+            if (kitchenScale === 'full') {
+                kitchenEquipmentCost = area * 10; // 坪あたり10万円
+            } else if (kitchenScale === 'semi') {
+                kitchenEquipmentCost = area * 7; // 坪あたり7万円
+            } else if (kitchenScale === 'simple') {
+                kitchenEquipmentCost = area * 4; // 坪あたり4万円
+            } else if (kitchenScale === 'drink') {
+                kitchenEquipmentCost = area * 2; // 坪あたり2万円
+            }
+            
+            // 居抜き物件の場合は厨房設備費を削減
+            if (constructionType === 'tenant') {
+                kitchenEquipmentCost *= 0.3; // 70%削減
+            }
+            
+            // 工期係数の適用
+            const periodFactor = constructionPeriodFactors[constructionPeriod];
+            const periodAdjustment = baseCost * (periodFactor - 1);
+            
+            // 総工事費（税抜）
+            const totalCost = baseCost + kitchenEquipmentCost + periodAdjustment;
+            
+            // 税込総額（10%）
+            const totalCostWithTax = totalCost * 1.1;
+            
+            // 坪単価
+            const tsuboCost = totalCost / area;
+            
+            // 工期目安
+            let constructionPeriodEstimate = '';
+            if (constructionPeriod === 'normal') {
+                constructionPeriodEstimate = '6〜8週間';
+            } else if (constructionPeriod === 'express') {
+                constructionPeriodEstimate = '4〜6週間';
+            } else if (constructionPeriod === 'urgent') {
+                constructionPeriodEstimate = '2〜4週間';
+            }
+            
+            // 見積り結果の表示
+            const estimateResultDiv = document.createElement('div');
+            estimateResultDiv.className = 'estimate-result';
+            
+            // 見積りタイトル
+            const titleDiv = document.createElement('div');
+            titleDiv.className = 'estimate-title';
+            titleDiv.textContent = '飲食店工事 お見積り結果';
+            estimateResultDiv.appendChild(titleDiv);
+            
+            // 総額
+            const priceDiv = document.createElement('div');
+            priceDiv.className = 'estimate-price';
+            priceDiv.textContent = `${Math.round(totalCost)}万円（税抜）`;
+            estimateResultDiv.appendChild(priceDiv);
+            
+            // 税込金額
+            const taxDiv = document.createElement('div');
+            taxDiv.className = 'estimate-detail';
+            taxDiv.innerHTML = `<span>税込総額</span><span>${Math.round(totalCostWithTax)}万円</span>`;
+            estimateResultDiv.appendChild(taxDiv);
+            
+            // 坪単価
+            const tsuboDiv = document.createElement('div');
+            tsuboDiv.className = 'estimate-detail';
+            tsuboDiv.innerHTML = `<span>坪単価</span><span>${Math.round(tsuboCost)}万円/坪</span>`;
+            estimateResultDiv.appendChild(tsuboDiv);
+            
+            // 基本工事費
+            const baseDiv = document.createElement('div');
+            baseDiv.className = 'estimate-detail';
+            baseDiv.innerHTML = `<span>基本工事費</span><span>${Math.round(baseCost)}万円</span>`;
+            estimateResultDiv.appendChild(baseDiv);
+            
+            // 厨房設備費
+            const kitchenDiv = document.createElement('div');
+            kitchenDiv.className = 'estimate-detail';
+            kitchenDiv.innerHTML = `<span>厨房設備費</span><span>${Math.round(kitchenEquipmentCost)}万円</span>`;
+            estimateResultDiv.appendChild(kitchenDiv);
+            
+            // 工期調整費
+            if (periodAdjustment > 0) {
+                const periodDiv = document.createElement('div');
+                periodDiv.className = 'estimate-detail';
+                periodDiv.innerHTML = `<span>工期調整費</span><span>${Math.round(periodAdjustment)}万円</span>`;
+                estimateResultDiv.appendChild(periodDiv);
+            }
+            
+            // 工期目安
+            const periodEstDiv = document.createElement('div');
+            periodEstDiv.className = 'estimate-detail';
+            periodEstDiv.innerHTML = `<span>工期目安</span><span>${constructionPeriodEstimate}</span>`;
+            estimateResultDiv.appendChild(periodEstDiv);
+            
+            // 注意書き
+            const noteDiv = document.createElement('div');
+            noteDiv.className = 'estimate-note';
+            noteDiv.textContent = '※ この見積りは概算です。正確な金額は現地調査後に算出されます。';
+            estimateResultDiv.appendChild(noteDiv);
+            
+            // 地域特有の注意点
+            if (region === 'urban') {
+                const urbanNoteDiv = document.createElement('div');
+                urbanNoteDiv.className = 'estimate-note';
+                urbanNoteDiv.textContent = '※ 都心部では搬入制限や駐車規制により、追加費用が発生する場合があります。';
+                estimateResultDiv.appendChild(urbanNoteDiv);
+            }
+            
+            // やり直しボタン
+            const restartDiv = document.createElement('div');
+            restartDiv.className = 'clearfix';
+            const restartButton = document.createElement('button');
+            restartButton.className = 'restart-button';
+            restartButton.textContent = 'もう一度計算する';
+            restartButton.addEventListener('click', () => {
+                resetChat();
+                startChat();
+            });
+            restartDiv.appendChild(restartButton);
+            estimateResultDiv.appendChild(restartDiv);
+            
+            // 結果の追加
+            chatMessages.appendChild(estimateResultDiv);
+            scrollToBottom();
+            
+            setTimeout(() => {
+                addBotMessage('お見積りを確認いただけましたか？より詳細なお見積りや実際のご相談は、お問い合わせフォームよりお気軽にご連絡ください。');
+                
+                chatState.currentStep = 'restart';
+                userInput.disabled = false;
+                sendButton.disabled = false;
+            }, 1000);
+        }
+        
+        // チャットをリセットする関数
+        function resetChat() {
+            // チャットメッセージをクリア
+            chatMessages.innerHTML = '';
+            
+            // 状態のリセット
+            chatState.currentStep = 'greeting';
+            chatState.estimateData = {
+                region: '',
+                area: 0,
+                constructionType: '',
+                businessType: '',
+                kitchenScale: '',
+                interiorGrade: '',
+                specialFeatures: [],
+                constructionPeriod: ''
+            };
+            
+            // 入力欄の無効化
+            userInput.disabled = true;
+            sendButton.disabled = true;
+        }
+        
+        // スクロールを最下部に移動する関数
+        function scrollToBottom() {
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+    </script>
+</body>
+</html>
